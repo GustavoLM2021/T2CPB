@@ -77,19 +77,94 @@ void load(char *name, Img *pic)
 
 //
 // Implemente AQUI o seu algoritmo
+void removepixel(RGB8 *linha, int col, int width)
+{
+    for (int x = col; x < width - 1; x++)
+    {
+        linha[x] = linha[x + 1];
+    }
+    linha[width - 1].r = linha[width - 1].g = 0; // ultima coluna em azul
+}
 void seamcarve(int targetWidth)
 {
     // Aplica o algoritmo e gera a saida em target->img...
 
-    RGB8(*ptr)
-    [target->width] = (RGB8(*)[target->width])target->img;
+    size_t img_size = sizeof(RGB8) * (target->width) * (target->height);
+    size_t matrix_size= sizeof(int) * (target->width) * (target->height);
 
-    for (int y = 0; y < target->height; y++)
-    {
-        for (int x = 0; x < targetW; x++)
-            ptr[y][x].r = ptr[y][x].g = 255;
-        for (int x = targetW; x < target->width; x++)
-            ptr[y][x].r = ptr[y][x].g = 0;
+    RGB8(*src_img)
+    [target->width] = (RGB8(*)[target->width])source->img;
+    RGB8(*src_msk)
+    [target->width] = (RGB8(*)[target->width])source->img;
+
+    RGB8(*tgt_img)
+    [target->width] = (RGB8(*)[target->width])target->img;
+    RGB8(*tgt_msk)
+    [target->width] = malloc(img_size);
+
+    int (*wrk_mci)
+    [target->width] = malloc(matrix_size);
+    int(*wrk_mca)
+    [target->width] = malloc(matrix_size);
+
+    memcpy(tgt_img, src_img, img_size); // Imagem inicial e a completa
+    memcpy(tgt_msk, src_msk, img_size);
+
+    int current_width = target->width; // inicia tamanho total
+    int col = target->width / 16;
+    while (current_width > targetWidth)
+    { // ate que chegue ao tamanho desejado
+
+        //memcpy(wrk_img, tgt_img, img_size); // prepara area temporaria
+        //memcpy(wrk_msk, tgt_msk, img_size);
+
+        for (int y = 1; y < target->height - 1; y++)
+        {
+            for (int x = 1; x < current_width - 1; x++)
+            {
+                // calcula energia x
+                int e;
+                int c;
+                c = tgt_img[y][x + 1].r - tgt_img[y][x - 1].r;
+                c = c * c;
+                e += c;
+
+                c = tgt_img[y][x + 1].g - tgt_img[y][x - 1].g;
+                c = c * c;
+                e += c;
+
+                c = tgt_img[y][x + 1].b - tgt_img[y][x - 1].b;
+                c = c * c;
+                e += c;
+
+                // calcula energia y
+                c = tgt_img[y+1][x].r - tgt_img[y-1][x].r;
+                c = c * c;
+                e += c;
+
+                c = tgt_img[y+1][x].g - tgt_img[y-1][x].g;
+                c = c * c;
+                e += c;
+
+                c = tgt_img[y+1][x].b - tgt_img[y-1][x].b;
+                c = c * c;
+                e += c;
+                
+                // energia total do pixel
+                wrk_mci[y][x] = e;
+
+                //wrk_img[y][x] = src_img[y][x];
+                //tgt_img[y][x] = wrk_img[y][x];
+                //ptr[y][x].r = ptr[y][x].g = 255;
+            }
+            for (int x = current_width; x < target->width; x++)
+            {
+                //tgt_img[y][x].r = tgt_img[y][x].g = 0;
+            }
+            removepixel(tgt_img[y], col, target->width);
+        }
+
+        current_width--;
     }
     // Chame uploadTexture a cada vez que mudar
     // a imagem (pic[2])
