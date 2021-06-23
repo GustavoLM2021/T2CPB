@@ -62,6 +62,11 @@ Img *target;
 // Imagem selecionada (0,1,2)
 int sel;
 
+    RGB8 tgt_msk[600][600];
+    signed long long wrk_mci[600][600];
+    signed long long wrk_mca[600][600];
+
+
 // Carrega uma imagem para a struct Img
 void load(char *name, Img *pic)
 {
@@ -77,41 +82,61 @@ void load(char *name, Img *pic)
 
 //
 // Implemente AQUI o seu algoritmo
+
+signed long long calc_pix_e(RGB8 p1, RGB8 p2){
+    signed long long c;
+    signed long long e=0;
+    c = p1.r;
+    c = c - p2.r;
+    c = c * c;
+    e = e + c;
+
+    c = p1.g;
+    c = c - p2.g;
+    c = c * c;
+    e = e + c;
+
+    c = p1.b;
+    c = c - p2.b;
+    c = c * c;
+    e = e + c;
+
+    return e;
+}
 void removepixel(RGB8 *linha, int col, int width)
 {
     for (int x = col; x < width - 1; x++)
     {
-        linha[x] = linha[x + 1];
+       linha[x] = linha[x + 1];
     }
-    linha[width - 1].r = linha[width - 1].g = 0; // ultima coluna em azul
+    linha[width - 1].r = linha[width - 1].g = linha[width - 1].b=0; // ultima coluna em preto   
 }
+
+
 void seamcarve(int targetWidth)
 {
     // Aplica o algoritmo e gera a saida em target->img...
 
     size_t img_size = sizeof(RGB8) * (target->width) * (target->height);
-    size_t matrix_size = sizeof(int) * (target->width) * (target->height);
-
-    RGB8(*src_img)
-    [target->width] = (RGB8(*)[target->width])source->img;
-    RGB8(*src_msk)
-    [target->width] = (RGB8(*)[target->width])mask->img;
-
-    RGB8(*tgt_img)
-    [target->width] = (RGB8(*)[target->width])target->img;
-    RGB8(*tgt_msk)
-    [target->width] = malloc(img_size);
-
-    int(*wrk_mci)
-        [target->width] = malloc(matrix_size);
-    int(*wrk_mca)
-        [target->width] = malloc(matrix_size);
-    int min_ca_val, min_ca_x;
-    memcpy(tgt_img, src_img, img_size); // Imagem inicial e a completa
-    memcpy(tgt_msk, src_msk, img_size);
-
+    
+    RGB8(*src_img)[target->width] = (RGB8(*)[target->width])source->img;
+    RGB8(*src_msk)[target->width] = (RGB8(*)[target->width])mask->img;
+    RGB8(*tgt_img)[target->width] = (RGB8(*)[target->width])target->img;
+    signed long long  min_ca_val;
+    int min_ca_x;
+  
+    
     int current_width = target->width; // inicia tamanho total
     
+    for (int y = 0; y < target->height; y++)
+        {
+            for (int x = 0; x < current_width; x++)
+            {
+                tgt_img[y][x] = src_img[y][x];
+                tgt_msk[y][x] = src_msk[y][x];
+            }
+        }
+
     while (current_width > targetWidth)
     { // ate que chegue ao tamanho desejado
 
@@ -128,8 +153,8 @@ void seamcarve(int targetWidth)
                 int yu;
                 int yd;
 
-                int e = 0;
-                int c = 0;
+                signed long long e = 0;
+                signed long long c = 0;
                 xr = x + 1;
                 if (xr >= current_width)
                 {
@@ -151,39 +176,20 @@ void seamcarve(int targetWidth)
                     yu = target->height - 1;
                 }
 
-                c = (int)(tgt_img[y][xr].r - tgt_img[y][xl].r);
-                c = c * c;
-                e = e + c;
-
-                c = (int)(tgt_img[y][xr].g - tgt_img[y][xl].g);
-                c = c * c;
-                e = e + c;
-
-                c = (int)(tgt_img[y][xr].b - tgt_img[y][xl].b);
-                c = c * c;
-                e = e + c;
-
-                // calcula energia y
-                c = tgt_img[yu][x].r - tgt_img[yd][x].r;
-                c = c * c;
-                e = e + c;
-
-                c = tgt_img[yu][x].g - tgt_img[yd][x].g;
-                c = c * c;
-                e = e + c;
-
-                c = tgt_img[yu][x].b - tgt_img[yd][x].b;
-                c = c * c;
-                e = e + c;
+                e = calc_pix_e(tgt_img[y][xr], tgt_img[y][xl]);
+                e = e + calc_pix_e(tgt_img[yu][x], tgt_img[yd][x]);
 
                 // energia do pixel
-                if (tgt_msk[y][x].r > 0)
+                if ((tgt_msk[y][x].r - tgt_msk[y][x].g)>10)
                 {
-                    e = -400000;
+                   // printf(" %d",(tgt_msk[y][x].r - tgt_msk[y][x].g));
+                    e += -40000000;
+                    //printf("R= %d %d",x,y);
                 }
-                if (tgt_msk[y][x].g > 0)
+                if ((tgt_msk[y][x].g - tgt_msk[y][x].r)>50)
                 {
-                    e = 400000;
+                    e += 40000000;
+                    //printf("G= %d %d",x,y);
                 }
                 wrk_mci[y][x] = e;
 
@@ -192,7 +198,7 @@ void seamcarve(int targetWidth)
                 //ptr[y][x].r = ptr[y][x].g = 255;
             }
         }
-        /*
+        
         // calculo da matriz de energia acumulada
         for (int y = 0; y < target->height; y++)
         {
@@ -204,7 +210,8 @@ void seamcarve(int targetWidth)
                 }
                 else
                 {
-                    int xl, xr, ca;
+                    int xl, xr;
+                    signed long long  ca;
                     xr = x + 1;
                     if (xr >= current_width)
                     {
@@ -216,14 +223,14 @@ void seamcarve(int targetWidth)
                         xl = x;
                     }
 
-                    ca = wrk_mci[y - 1][x];      // tenta primeiro com a celula central
-                    if (ca > wrk_mci[y - 1][xl]) // se esquerda menor
+                    ca = wrk_mca[y - 1][x];      // tenta primeiro com a celula central
+                    if (ca > wrk_mca[y - 1][xl]) // se esquerda menor
                     {
-                        ca = wrk_mci[y - 1][xl]; // substitui
+                        ca = wrk_mca[y - 1][xl]; // substitui
                     }
-                    if (ca > wrk_mci[y - 1][xr]) // se direita menor
+                    if (ca > wrk_mca[y - 1][xr]) // se direita menor
                     {
-                        ca = wrk_mci[y - 1][xr]; // substitui
+                        ca = wrk_mca[y - 1][xr]; // substitui
                     }
 
                     wrk_mca[y][x] = ca + wrk_mci[y][x]; // acumula
@@ -282,9 +289,18 @@ void seamcarve(int targetWidth)
                 removepixel(tgt_msk[y], min_ca_x, target->width);
             }
         }
-*/
+
         current_width--;
     }
+    
+     for (int y = 0; y < target->height; y++)
+        {
+            for (int x = 0; x < current_width; x++)
+            {
+                //tgt_img[y][x] = tgt_msk[y][x];
+            }
+        }
+        
     // Chame uploadTexture a cada vez que mudar
     // a imagem (pic[2])
     uploadTexture();
