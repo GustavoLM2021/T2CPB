@@ -140,9 +140,6 @@ void seamcarve(int targetWidth)
     while (current_width > targetWidth)
     { // ate que chegue ao tamanho desejado
 
-        //memcpy(wrk_img, tgt_img, img_size); // prepara area temporaria
-        //memcpy(wrk_msk, tgt_msk, img_size);
-
         for (int y = 0; y < target->height; y++)
         {
             for (int x = 0; x < current_width; x++)
@@ -182,20 +179,16 @@ void seamcarve(int targetWidth)
                 // energia do pixel
                 if ((tgt_msk[y][x].r - tgt_msk[y][x].g)>10)
                 {
-                   // printf(" %d",(tgt_msk[y][x].r - tgt_msk[y][x].g));
                     e += -40000000;
-                    //printf("R= %d %d",x,y);
+                
                 }
                 if ((tgt_msk[y][x].g - tgt_msk[y][x].r)>50)
                 {
                     e += 40000000;
-                    //printf("G= %d %d",x,y);
                 }
                 wrk_mci[y][x] = e;
 
-                //wrk_img[y][x] = src_img[y][x];
-                //tgt_img[y][x] = wrk_img[y][x];
-                //ptr[y][x].r = ptr[y][x].g = 255;
+                
             }
         }
         
@@ -293,14 +286,7 @@ void seamcarve(int targetWidth)
         current_width--;
     }
     
-     for (int y = 0; y < target->height; y++)
-        {
-            for (int x = 0; x < current_width; x++)
-            {
-                //tgt_img[y][x] = tgt_msk[y][x];
-            }
-        }
-        
+             
     // Chame uploadTexture a cada vez que mudar
     // a imagem (pic[2])
     uploadTexture();
