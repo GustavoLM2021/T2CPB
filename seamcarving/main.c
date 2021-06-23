@@ -90,80 +90,199 @@ void seamcarve(int targetWidth)
     // Aplica o algoritmo e gera a saida em target->img...
 
     size_t img_size = sizeof(RGB8) * (target->width) * (target->height);
-    size_t matrix_size= sizeof(int) * (target->width) * (target->height);
+    size_t matrix_size = sizeof(int) * (target->width) * (target->height);
 
     RGB8(*src_img)
     [target->width] = (RGB8(*)[target->width])source->img;
     RGB8(*src_msk)
-    [target->width] = (RGB8(*)[target->width])source->img;
+    [target->width] = (RGB8(*)[target->width])mask->img;
 
     RGB8(*tgt_img)
     [target->width] = (RGB8(*)[target->width])target->img;
     RGB8(*tgt_msk)
     [target->width] = malloc(img_size);
 
-    int (*wrk_mci)
-    [target->width] = malloc(matrix_size);
+    int(*wrk_mci)
+        [target->width] = malloc(matrix_size);
     int(*wrk_mca)
-    [target->width] = malloc(matrix_size);
-
+        [target->width] = malloc(matrix_size);
+    int min_ca_val, min_ca_x;
     memcpy(tgt_img, src_img, img_size); // Imagem inicial e a completa
     memcpy(tgt_msk, src_msk, img_size);
 
     int current_width = target->width; // inicia tamanho total
-    int col = target->width / 16;
+    
     while (current_width > targetWidth)
     { // ate que chegue ao tamanho desejado
 
         //memcpy(wrk_img, tgt_img, img_size); // prepara area temporaria
         //memcpy(wrk_msk, tgt_msk, img_size);
 
-        for (int y = 1; y < target->height - 1; y++)
+        for (int y = 0; y < target->height; y++)
         {
-            for (int x = 1; x < current_width - 1; x++)
+            for (int x = 0; x < current_width; x++)
             {
                 // calcula energia x
-                int e;
-                int c;
-                c = tgt_img[y][x + 1].r - tgt_img[y][x - 1].r;
-                c = c * c;
-                e += c;
+                int xr;
+                int xl;
+                int yu;
+                int yd;
 
-                c = tgt_img[y][x + 1].g - tgt_img[y][x - 1].g;
-                c = c * c;
-                e += c;
+                int e = 0;
+                int c = 0;
+                xr = x + 1;
+                if (xr >= current_width)
+                {
+                    xr = 0;
+                }
+                xl = x - 1;
+                if (x == 0)
+                {
+                    xl = current_width - 1;
+                }
+                yd = y + 1;
+                if (yd >= target->height)
+                {
+                    yd = 0;
+                }
+                yu = y - 1;
+                if (y == 0)
+                {
+                    yu = target->height - 1;
+                }
 
-                c = tgt_img[y][x + 1].b - tgt_img[y][x - 1].b;
+                c = (int)(tgt_img[y][xr].r - tgt_img[y][xl].r);
                 c = c * c;
-                e += c;
+                e = e + c;
+
+                c = (int)(tgt_img[y][xr].g - tgt_img[y][xl].g);
+                c = c * c;
+                e = e + c;
+
+                c = (int)(tgt_img[y][xr].b - tgt_img[y][xl].b);
+                c = c * c;
+                e = e + c;
 
                 // calcula energia y
-                c = tgt_img[y+1][x].r - tgt_img[y-1][x].r;
+                c = tgt_img[yu][x].r - tgt_img[yd][x].r;
                 c = c * c;
-                e += c;
+                e = e + c;
 
-                c = tgt_img[y+1][x].g - tgt_img[y-1][x].g;
+                c = tgt_img[yu][x].g - tgt_img[yd][x].g;
                 c = c * c;
-                e += c;
+                e = e + c;
 
-                c = tgt_img[y+1][x].b - tgt_img[y-1][x].b;
+                c = tgt_img[yu][x].b - tgt_img[yd][x].b;
                 c = c * c;
-                e += c;
-                
-                // energia total do pixel
+                e = e + c;
+
+                // energia do pixel
+                if (tgt_msk[y][x].r > 0)
+                {
+                    e = -400000;
+                }
+                if (tgt_msk[y][x].g > 0)
+                {
+                    e = 400000;
+                }
                 wrk_mci[y][x] = e;
 
                 //wrk_img[y][x] = src_img[y][x];
                 //tgt_img[y][x] = wrk_img[y][x];
                 //ptr[y][x].r = ptr[y][x].g = 255;
             }
-            for (int x = current_width; x < target->width; x++)
+        }
+        /*
+        // calculo da matriz de energia acumulada
+        for (int y = 0; y < target->height; y++)
+        {
+            for (int x = 0; x < current_width; x++)
             {
-                //tgt_img[y][x].r = tgt_img[y][x].g = 0;
+                if (y == 0)
+                {
+                    wrk_mca[y][x] = wrk_mci[y][x];
+                }
+                else
+                {
+                    int xl, xr, ca;
+                    xr = x + 1;
+                    if (xr >= current_width)
+                    {
+                        xr = x;
+                    }
+                    xl = x - 1;
+                    if (x == 0)
+                    {
+                        xl = x;
+                    }
+
+                    ca = wrk_mci[y - 1][x];      // tenta primeiro com a celula central
+                    if (ca > wrk_mci[y - 1][xl]) // se esquerda menor
+                    {
+                        ca = wrk_mci[y - 1][xl]; // substitui
+                    }
+                    if (ca > wrk_mci[y - 1][xr]) // se direita menor
+                    {
+                        ca = wrk_mci[y - 1][xr]; // substitui
+                    }
+
+                    wrk_mca[y][x] = ca + wrk_mci[y][x]; // acumula
+                }
             }
-            removepixel(tgt_img[y], col, target->width);
         }
 
+        min_ca_val = wrk_mca[target->height - 1][0];
+        min_ca_x = 0;
+
+        for (int y = target->height - 1; y >= 0; y--)
+        {
+
+            if (y == target->height - 1)
+            {
+                for (int x = 0; x < current_width; x++)
+                {
+                    if (min_ca_val > wrk_mca[y][x])
+                    {
+                        min_ca_val = wrk_mca[y][x];
+                        min_ca_x = x;
+                    }
+                }
+                removepixel(tgt_img[y], min_ca_x, target->width);
+                removepixel(tgt_msk[y], min_ca_x, target->width);
+            }
+            else
+            {
+                // nas demais linhas basta testar os vizinhos
+
+                int xl, xr;
+                xr = min_ca_x + 1;
+                if (xr >= current_width)
+                {
+                    xr = min_ca_x;
+                }
+                xl = min_ca_x - 1;
+                if (min_ca_x == 0)
+                {
+                    xl = min_ca_x;
+                }
+
+                min_ca_val = wrk_mca[y][min_ca_x]; // tenta primeiro com a do meio
+                if (min_ca_val > wrk_mca[y][xl])
+                {
+                    min_ca_val = wrk_mca[y][xl];
+                    min_ca_x = xl;
+                }
+                if (min_ca_val > wrk_mca[y][xr])
+                {
+                    min_ca_val = wrk_mca[y][xr];
+                    min_ca_x = xr;
+                }
+
+                removepixel(tgt_img[y], min_ca_x, target->width);
+                removepixel(tgt_msk[y], min_ca_x, target->width);
+            }
+        }
+*/
         current_width--;
     }
     // Chame uploadTexture a cada vez que mudar
