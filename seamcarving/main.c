@@ -37,7 +37,8 @@ void load(char *name, Img *pic);
 void uploadTexture();
 void seamcarve(int targetWidth); // executa o algoritmo
 void freemem();                  // limpa memória (caso tenha alocado dinamicamente)
-
+signed long long calc_pix_e(RGB8 p1, RGB8 p2);//calculo de energia do pixel 
+void removepixel(RGB8 *linha, int col, int width);//exclui 1 pixel da linha da imagem
 // Funções da interface gráfica e OpenGL
 void init();
 void draw();
@@ -61,10 +62,11 @@ Img *target;
 
 // Imagem selecionada (0,1,2)
 int sel;
-
-    RGB8 tgt_msk[600][600];
-    signed long long wrk_mci[600][600];
-    signed long long wrk_mca[600][600];
+    //variaveis usadas na funcao seamcarve
+    RGB8 tgt_msk[600][600];//mascara ajustada ao tamanho da imagem alvo
+    signed long long wrk_mci[600][600];//matriz de energia individual de cada pixel
+    signed long long wrk_mca[600][600];//matriz de energia acumulada de cada pixel
+    //nao foi utilizado alocacao dinamica, a fim de poder ver facilmente no vsCode os valores durante a depuracao
 
 
 // Carrega uma imagem para a struct Img
@@ -83,14 +85,18 @@ void load(char *name, Img *pic)
 //
 // Implemente AQUI o seu algoritmo
 
+//calculo de energia do pixel
 signed long long calc_pix_e(RGB8 p1, RGB8 p2){
     signed long long c;
     signed long long e=0;
-    c = p1.r;
-    c = c - p2.r;
-    c = c * c;
-    e = e + c;
+    //Faz o cálculo do gradiente a partir dos pixels vizinhos 
+    
+    c = p1.r;//busca o componente do primeiro vizinho do pixel
+    c = c - p2.r;//subtrai a componente do outro vizinho 
+    c = c * c;//eleva ao quadrado
+    e = e + c;//acumula a energia
 
+    //faz o mesmo para todos os componentes de cor
     c = p1.g;
     c = c - p2.g;
     c = c * c;
@@ -103,31 +109,32 @@ signed long long calc_pix_e(RGB8 p1, RGB8 p2){
 
     return e;
 }
+//remove um pixel e faz o shift para esquerda da linha de pixels restante
+
 void removepixel(RGB8 *linha, int col, int width)
 {
     for (int x = col; x < width - 1; x++)
     {
-       linha[x] = linha[x + 1];
+       linha[x] = linha[x + 1];//faz o shift
+    
     }
-    linha[width - 1].r = linha[width - 1].g = linha[width - 1].b=0; // ultima coluna em preto   
+    linha[width - 1].r = linha[width - 1].g = linha[width - 1].b=0; // cria o ultimo pixel em preto   
 }
 
 
 void seamcarve(int targetWidth)
 {
     // Aplica o algoritmo e gera a saida em target->img...
-
-    size_t img_size = sizeof(RGB8) * (target->width) * (target->height);
     
-    RGB8(*src_img)[target->width] = (RGB8(*)[target->width])source->img;
-    RGB8(*src_msk)[target->width] = (RGB8(*)[target->width])mask->img;
-    RGB8(*tgt_img)[target->width] = (RGB8(*)[target->width])target->img;
+    RGB8(*src_img)[target->width] = (RGB8(*)[target->width])source->img;//imagem original
+    RGB8(*src_msk)[target->width] = (RGB8(*)[target->width])mask->img;//mascara da imagem original
+    RGB8(*tgt_img)[target->width] = (RGB8(*)[target->width])target->img;//imagem resultante do algoritmo
     signed long long  min_ca_val;
     int min_ca_x;
   
     
     int current_width = target->width; // inicia tamanho total
-    
+    //carrega as imagens de trabalho
     for (int y = 0; y < target->height; y++)
         {
             for (int x = 0; x < current_width; x++)
@@ -138,55 +145,57 @@ void seamcarve(int targetWidth)
         }
 
     while (current_width > targetWidth)
-    { // ate que chegue ao tamanho desejado
+    { //loop ate que chegue a largura desejada da imagem 
 
+        //calculo de energia de cada pixel
         for (int y = 0; y < target->height; y++)
         {
             for (int x = 0; x < current_width; x++)
             {
-                // calcula energia x
+                //coordenadas dos pixels vizinhos
                 int xr;
                 int xl;
                 int yu;
                 int yd;
 
-                signed long long e = 0;
-                signed long long c = 0;
+                signed long long e = 0;//armazena a energia do pixel
+                
+                //calcula as coordenadas dos pixels vizinhos, levando em conta as bordas da imagem
                 xr = x + 1;
-                if (xr >= current_width)
+                if (xr >= current_width)//borda direita
                 {
                     xr = 0;
                 }
                 xl = x - 1;
-                if (x == 0)
+                if (x == 0)//borda esquerda
                 {
                     xl = current_width - 1;
                 }
                 yd = y + 1;
-                if (yd >= target->height)
+                if (yd >= target->height)//borda inferior
                 {
                     yd = 0;
                 }
                 yu = y - 1;
-                if (y == 0)
+                if (y == 0)//borda superior
                 {
                     yu = target->height - 1;
                 }
 
-                e = calc_pix_e(tgt_img[y][xr], tgt_img[y][xl]);
-                e = e + calc_pix_e(tgt_img[yu][x], tgt_img[yd][x]);
+                e = calc_pix_e(tgt_img[y][xr], tgt_img[y][xl]);//obtem a energia dos vizinhos x
+                e = e + calc_pix_e(tgt_img[yu][x], tgt_img[yd][x]);//adiciona a energia dos vizinhos y
 
-                // energia do pixel
-                if ((tgt_msk[y][x].r - tgt_msk[y][x].g)>10)
+                //verifica se o pixel foi afetado pela mascara
+                if ((tgt_msk[y][x].r - tgt_msk[y][x].g)>10)//o pixel da mascara e vermelho
                 {
-                    e += -40000000;
+                    e += -40000000;//atribui um valor extremamente baixo
                 
                 }
-                if ((tgt_msk[y][x].g - tgt_msk[y][x].r)>50)
+                if ((tgt_msk[y][x].g - tgt_msk[y][x].r)>50)//o pixel da mascara e verde
                 {
-                    e += 40000000;
+                    e += 40000000;//atribui um valor extremamente alto
                 }
-                wrk_mci[y][x] = e;
+                wrk_mci[y][x] = e;//armazena o resultado na matriz de energia
 
                 
             }
@@ -197,93 +206,100 @@ void seamcarve(int targetWidth)
         {
             for (int x = 0; x < current_width; x++)
             {
-                if (y == 0)
+                if (y == 0)//a primeira linha recebe a energia do proprio  pixel
                 {
                     wrk_mca[y][x] = wrk_mci[y][x];
                 }
                 else
-                {
-                    int xl, xr;
-                    signed long long  ca;
+                {//as demais linhas recebem o custo acumulado 
+
+                    int xl, xr;//coordenadas dos vizinhos
+                    signed long long  ca;//custo acumulado 
+                
+                    //calcula as coordenadas dos vizinhos
                     xr = x + 1;
-                    if (xr >= current_width)
+                    if (xr >= current_width)//borda da direita
                     {
                         xr = x;
                     }
                     xl = x - 1;
-                    if (x == 0)
+                    if (x == 0)//borda da esquerda
                     {
                         xl = x;
                     }
 
-                    ca = wrk_mca[y - 1][x];      // tenta primeiro com a celula central
-                    if (ca > wrk_mca[y - 1][xl]) // se esquerda menor
+                    ca = wrk_mca[y - 1][x];      // tenta primeiro com o vizinho central
+                    if (ca > wrk_mca[y - 1][xl]) // se o vizinho da esquerda e menor custo
                     {
-                        ca = wrk_mca[y - 1][xl]; // substitui
+                        ca = wrk_mca[y - 1][xl]; // substitui o custo
                     }
-                    if (ca > wrk_mca[y - 1][xr]) // se direita menor
+                    if (ca > wrk_mca[y - 1][xr]) // se o vizinho da direita e menor custo
                     {
-                        ca = wrk_mca[y - 1][xr]; // substitui
+                        ca = wrk_mca[y - 1][xr]; // substitui o custo
                     }
 
-                    wrk_mca[y][x] = ca + wrk_mci[y][x]; // acumula
+                    wrk_mca[y][x] = ca + wrk_mci[y][x]; // acumula a energia do pixel atual
                 }
             }
         }
+        //encontrar o seam com menor soma acumulada de energia
+        min_ca_val = wrk_mca[target->height - 1][0];//valor inicial 
+        min_ca_x = 0;//valor inicial
 
-        min_ca_val = wrk_mca[target->height - 1][0];
-        min_ca_x = 0;
-
+        //basta fazer o caminho inverso, isto é, de baixo para cima.
         for (int y = target->height - 1; y >= 0; y--)
         {
-
-            if (y == target->height - 1)
+            if (y == target->height - 1)//ultima linha da matriz
             {
-                for (int x = 0; x < current_width; x++)
+                for (int x = 0; x < current_width; x++)//encontrar o menor custo acumulado
                 {
-                    if (min_ca_val > wrk_mca[y][x])
+                    if (min_ca_val > wrk_mca[y][x])//se o valor atual e maior do que o do pixel
                     {
-                        min_ca_val = wrk_mca[y][x];
-                        min_ca_x = x;
+                        min_ca_val = wrk_mca[y][x];//substitui pelo menor valor
+                        min_ca_x = x;//e salva a coordenada do pixel de menor custo
                     }
                 }
-                removepixel(tgt_img[y], min_ca_x, target->width);
-                removepixel(tgt_msk[y], min_ca_x, target->width);
+                //remove o pixel de menor custo nessa linha
+                removepixel(tgt_img[y], min_ca_x, target->width);//remove da imagem
+                removepixel(tgt_msk[y], min_ca_x, target->width);//remove da mascara
             }
             else
             {
-                // nas demais linhas basta testar os vizinhos
+                // nas demais linhas encontra o caminho reverso de menor custo acumulado
 
-                int xl, xr;
+                
+                int xl, xr;//coordenadas dos vizinhos
+                
+                //calcula as coordenadas dos vizinhos
                 xr = min_ca_x + 1;
-                if (xr >= current_width)
+                if (xr >= current_width)//borda da direita
                 {
                     xr = min_ca_x;
                 }
                 xl = min_ca_x - 1;
-                if (min_ca_x == 0)
+                if (min_ca_x == 0)//borda da esquerda
                 {
                     xl = min_ca_x;
                 }
 
-                min_ca_val = wrk_mca[y][min_ca_x]; // tenta primeiro com a do meio
-                if (min_ca_val > wrk_mca[y][xl])
+                min_ca_val = wrk_mca[y][min_ca_x]; // tenta primeiro com vizinho do meio
+                if (min_ca_val > wrk_mca[y][xl])// se o vizinho da esquerda e menor custo
                 {
-                    min_ca_val = wrk_mca[y][xl];
-                    min_ca_x = xl;
+                    min_ca_val = wrk_mca[y][xl];//substitui o custo
+                    min_ca_x = xl;//e salva a coordenada do pixel de menor custo
                 }
-                if (min_ca_val > wrk_mca[y][xr])
+                if (min_ca_val > wrk_mca[y][xr])// se o vizinho da direita e menor custo
                 {
-                    min_ca_val = wrk_mca[y][xr];
-                    min_ca_x = xr;
+                    min_ca_val = wrk_mca[y][xr];//substitui o custo
+                    min_ca_x = xr;//e salva a coordenada do pixel de menor custo
                 }
-
-                removepixel(tgt_img[y], min_ca_x, target->width);
-                removepixel(tgt_msk[y], min_ca_x, target->width);
+                 //remove o pixel de menor custo nessa linha
+                removepixel(tgt_img[y], min_ca_x, target->width);//remove da imagem
+                removepixel(tgt_msk[y], min_ca_x, target->width);//remove da mascara
             }
         }
 
-        current_width--;
+        current_width--;//a imagem esta menor em 1 pixel
     }
     
              
